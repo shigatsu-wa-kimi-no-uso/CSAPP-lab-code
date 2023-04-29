@@ -1,0 +1,50 @@
+        .pos 0
+init:
+        irmovq Stack,%rsp
+        irmovq Stack,%rbp
+        jmp main
+        .align 8
+# Source block
+src:
+        .quad 0x00a
+        .quad 0x0b0
+        .quad 0xc00
+# Destination block
+dest:
+        .quad 0x111
+        .quad 0x222
+        .quad 0x333
+
+main:
+        irmovq src,%rdi
+        irmovq dest,%rsi
+        irmovq $3,%rdx   # 传参
+        call copy_block
+        halt
+# long copy_block(long *src, long *dest, long len)
+#  src in %rdi, dest in %rsi, len in rdx, return value in %rax
+copy_block:
+        pushq %r8
+        pushq %r9
+        pushq %r10
+        xorq %rax,%rax  # 返回值置0
+        irmovq $8,%r8   # 地址偏移量
+        irmovq $1,%r9   # 常数1
+        jmp test
+loop:
+        mrmovq (%rdi),%r10 # 取值
+        addq %r8,%rdi
+        rmmovq %r10,(%rsi) # 赋值
+        addq %r8,%rsi
+        xorq %r10,%rax
+        subq %r9,%rdx      
+test:
+        andq %rdx,%rdx
+        jg loop
+        popq %r10
+        popq %r9
+        popq %r8
+        ret
+        .pos 0x350
+Stack:
+

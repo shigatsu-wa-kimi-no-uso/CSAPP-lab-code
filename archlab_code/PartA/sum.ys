@@ -1,0 +1,44 @@
+.pos 0
+init:   
+        irmovq Stack, %rsp
+        irmovq Stack, %rbp
+        jmp main
+# linked list
+.align 8
+ele1:
+        .quad 0x00a
+        .quad ele2
+ele2:
+        .quad 0x0b0
+        .quad ele3
+ele3:
+        .quad 0xc00
+        .quad 0
+
+main:
+            irmovq ele1,%rdi    # 传参
+            call sum_list
+            halt
+
+# long sum_list(list_ptr ls)
+#  rs in %rdi, retrun value in %rax
+sum_list:   
+            pushq %r8           # callee saved
+            pushq %r9
+            xorq %rax,%rax
+            irmovq $8,%r8       # 链表成员变量偏移
+            jmp test
+loop:
+            mrmovq (%rdi),%r9   # 取成员变量val值
+            addq %r9,%rax       # 累加
+            addq %r8,%rdi       # 取next指针成员变量偏移
+            mrmovq (%rdi),%rdi  # 指针指向next
+test:
+            andq %rdi,%rdi      # 空指针检测
+            jne loop            # jump if not equal 0
+            popq %r9            # restoring
+            popq %r8            
+            ret            
+            .pos 0x300
+Stack:      
+            

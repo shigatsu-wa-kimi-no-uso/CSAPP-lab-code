@@ -1,0 +1,44 @@
+        .pos 0
+init:
+        irmovq Stack,%rsp
+        irmovq Stack,%rbp
+        jmp main
+# Sample linked list
+        .align 8
+ele1:
+        .quad 0x00a
+        .quad ele2
+ele2:
+        .quad 0x0b0
+        .quad ele3
+ele3:
+        .quad 0xc00
+        .quad 0
+main:
+        irmovq ele1,%rdi  #传参
+        call rsum_list
+        halt
+
+# long rsum_list(list_ptr ls)
+#  ls in %rdi, return value in %rax
+rsum_list:
+        pushq %r8          # 保存上个函数的现场
+        pushq %r9       
+        xorq %rax,%rax     # 返回值置0 
+        andq %rdi,%rdi    # 检测rdi是否为0
+        je final
+        mrmovq (%rdi),%r9 # 取值到r9
+        irmovq $8,%r8     # 指针指向next
+        addq %r8,%rdi
+        mrmovq (%rdi),%rdi
+        call rsum_list    # 从rsum_list返回后,rax为其返回值    
+        addq %r9,%rax
+final:
+        popq %r9           # 恢复上个函数帧的内容
+        popq %r8
+        ret
+        .pos 0x300
+Stack: 
+
+
+        
