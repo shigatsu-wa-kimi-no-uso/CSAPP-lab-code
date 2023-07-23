@@ -332,7 +332,7 @@ void do_bgfg(char** argv)
     }
 
     //保证job不为NULL
-    if (!strcmp(argv[0], "bg")) {
+    if (strcmp(argv[0], "bg") == 0) {
         debug("switching job [%d] (%d) state to background\n", job->jid, pid);
         kill(-pid, SIGCONT);
         job->state = BG;
@@ -356,15 +356,21 @@ void waitfg(pid_t pid)
     pid_t result;
     int jmpval;
     debug("waiting for job %d\n", pid);
-    if ((jmpval = sigsetjmp(&jmpbuf, 1)) == 0) {
-        // sleep(1);
-        // kill(-pid, SIGTSTP);
-        result = waitpid(pid, &status, 0);
-    } else if (jmpval == 1) {
-        debug("waitfg immediately returned for job [%d] (%d) switched state to STOPPED.\n", getjobpid(jobs, pid)->jid, pid);
-        return;
+    jmpval = sigsetjmp(&jmpbuf, 1);
+    while (!jmpval) {
+        pause();
     }
     debug("done waiting for job %d\n", pid);
+    /*
+    if (jmpval == 0) {
+        while (1) {
+            pause();
+        }
+    } else if (jmpval == 1) {
+        debug("waitfg immediately returned for job [%d] (%d) switched state to STOPPED or TERMINATED.\n", getjobpid(jobs, pid)->jid, pid);
+        return;
+    }*/
+    /*
     if (result > 0 && WIFSIGNALED(status)) {
         printf("Job [%d] (%d) terminated by signal %d\n", getjobpid(jobs, pid)->jid, pid, WTERMSIG(status));
     }
@@ -374,7 +380,7 @@ void waitfg(pid_t pid)
         debug("delete job %d failed: no such job\n", pid);
     } else {
         debug("delete job %d ok\n", pid);
-    }
+    }*/
 }
 
 /*****************
@@ -393,23 +399,35 @@ void sigchld_handler(int sig)
     pid_t pid;
     int status;
     debug("signal %d catched.\n", sig);
-    sigprocmask(SIG_BLOCK, &sigmask, NULL); //保护
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED | WCONTINUED)) > 0) {
         struct job_t* job = getjobpid(jobs, pid);
+        int oldstate = job->state;
         //当前pid为非运行态
         if (WIFEXITED(status) || WIFSIGNALED(status)) {
+            if (WIFSIGNALED(status)) {
+                printf("Job [%d] (%d) terminated by signal %d\n", getjobpid(jobs, pid)->jid, pid, WTERMSIG(status));
+            }
             if (deletejob(jobs, pid) == 0) {
                 debug("delete job %d ok\n", pid);
             }
             debug("process %d reaped.\n", pid);
-        } else if (WIFSTOPPED(status)) {
-            int oldstate = job->state;
-            printf("Job [%d] (%d) stopped by signal %d\n", job->jid, pid, WSTOPSIG(status));
-            job->state = ST;
             if (oldstate == FG) {
                 //立即打断waitfg的等待
                 siglongjmp(&jmpbuf, 1);
             }
+            // kill(-getpid(),SIGALRM);
+        } else if (WIFSTOPPED(status)) {
+            job->state = ST;
+            printf("Job [%d] (%d) stopped by signal %d\n", job->jid, pid, WSTOPSIG(status));
+            if (oldstate == FG) {
+                //立即打断waitfg的等待
+                siglongjmp(&jmpbuf, 1);
+            }
+            // kill(-getpid(),SIGALRM);
+             /*if (oldstate == FG) {
+                 //立即打断waitfg的等待
+                 siglongjmp(&jmpbuf, 1);
+             }*/
         } else if (WIFCONTINUED(status)) {
             //如果状态为CONTINUED,则需要将state设为BG或FG,但前台程序必须由fg命令执行,因此设为BG,FG状态交给fg命令处理程序完成
             debug("Job [%d] (%d) continued\n", job->jid, job->pid);
@@ -420,7 +438,6 @@ void sigchld_handler(int sig)
             }
         }
     }
-    sigprocmask(SIG_UNBLOCK, &sigmask, NULL);
 }
 
 /*
